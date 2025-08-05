@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../deliver/deliver/python-clients"
+		},
+		{
+			"path": "../../deliver/deliver/voice_chatbot_env"
+		}
+	],
+	"settings": {}
+}

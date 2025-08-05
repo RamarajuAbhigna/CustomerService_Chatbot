@@ -8,28 +8,31 @@ from utils.openrouter_client import (
 )
 from utils.conversation_manager import ConversationManager
 from utils.database import db_manager
-
+from internal_pages.chatbot_voice import run as _inject_voice
 
 def chatbot_page():
     """AI-powered customer service chatbot page."""
+    _inject_voice()   # <-- NEW: add voice controls
     # Check if we should show chat history page
     if st.session_state.get('show_chat_history', False):
         _show_chat_history_page()
         return
-    
+
     # Initialize conversation manager
     if 'conv_manager' not in st.session_state:
         st.session_state.conv_manager = ConversationManager()
-    
     conv_manager = st.session_state.conv_manager
 
-    # Page header
+    # Page header (replaced Pikachu header with simple header)
     st.markdown("""
     <div class="main-header">
         <h1>🤖 AI Customer Service Assistant</h1>
         <p>Get instant help with your orders, billing, and account questions</p>
     </div>
     """, unsafe_allow_html=True)
+
+    # Main layout: chat and actions
+    
 
     # Create two columns - chat area and quick actions
     col_chat, col_actions = st.columns([3, 1])
