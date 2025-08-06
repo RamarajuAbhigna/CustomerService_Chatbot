@@ -9,6 +9,7 @@ from utils.data import (
     SUBSCRIPTION_PLANS, RESTAURANT_RECOMMENDATIONS, 
     SPECIAL_OFFERS, TRENDING_ITEMS, get_all_orders
 )
+from utils.ml_recommendations import get_ml_recommendations
 
 
 def dashboard_page():
@@ -578,16 +579,43 @@ def recommendations_page(user_data):
     st.markdown("""
     <div class="main-header">
         <h1>🎯 Personalized Recommendations</h1>
-        <p>Discover new restaurants and dishes based on your preferences</p>
+        <p>AI-powered recommendations based on your order history and preferences</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # User's order history for personalization
+    username = st.session_state.get('username', '')
     orders = user_data.get('orders', [])
     
-    # Analyze user preferences
+    # Get ML-based recommendations
+    with st.spinner("🤖 Generating personalized recommendations..."):
+        ml_recommendations = get_ml_recommendations(username)
+    
+    # Display user's order history summary
     if orders:
-        # Get favorite restaurants
+        st.subheader("📊 Your Dining Insights")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_orders = len(orders)
+            st.metric("Total Orders", total_orders)
+        
+        with col2:
+            avg_order_value = sum(order.get('total', 0) for order in orders) / len(orders)
+            st.metric("Avg Order Value", f"₹{avg_order_value:.0f}")
+        
+        with col3:
+            # Get most frequent restaurant
+            restaurant_counts = {}
+            for order in orders:
+                restaurant = order.get('restaurant', 'Unknown')
+                restaurant_counts[restaurant] = restaurant_counts.get(restaurant, 0) + 1
+            
+            if restaurant_counts:
+                favorite_restaurant = max(restaurant_counts, key=restaurant_counts.get)
+                st.metric("Favorite Restaurant", favorite_restaurant)
+        
+        # Show favorite restaurants
         restaurant_counts = {}
         for order in orders:
             restaurant = order.get('restaurant', 'Unknown')
@@ -595,59 +623,197 @@ def recommendations_page(user_data):
         
         favorite_restaurants = sorted(restaurant_counts.items(), key=lambda x: x[1], reverse=True)[:3]
         
-        st.subheader("⭐ Based on Your Order History")
-        
         if favorite_restaurants:
-            st.write("**Your Favorite Restaurants:**")
-            for restaurant, count in favorite_restaurants:
-                st.markdown(f"• **{restaurant}** - {count} orders")
+            with st.expander("⭐ Your Favorite Restaurants"):
+                for restaurant, count in favorite_restaurants:
+                    st.markdown(f"• **{restaurant}** - {count} orders")
 
-    # Restaurant recommendations
-    st.subheader("🍽️ Recommended Restaurants")
-    
-    cols = st.columns(2)
-    
-    for i, restaurant in enumerate(RESTAURANT_RECOMMENDATIONS[:6]):
-        with cols[i % 2]:
-            st.markdown(f"""
-            <div style="
-                background: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 10px;
-                padding: 1rem;
-                margin: 0.5rem 0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            ">
-                <h4 style="margin: 0 0 0.5rem 0; color: #333;">{restaurant['name']}</h4>
-                <p style="margin: 0 0 0.5rem 0; color: #666;">{restaurant['cuisine']} Cuisine</p>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #ffc107;">⭐ {restaurant['rating']}</span>
-                    <span style="color: #28a745;">🕒 {restaurant['delivery_time']}</span>
+    # ML-based Hybrid Recommendations (Main recommendations)
+    hybrid_recs = ml_recommendations.get('hybrid', [])
+    if hybrid_recs:
+        st.subheader("🤖 AI Recommended For You")
+        st.markdown("*Based on your preferences and similar users' choices*")
+        
+        cols = st.columns(2)
+        
+        for i, restaurant in enumerate(hybrid_recs[:6]):
+            with cols[i % 2]:
+                score = restaurant.get('recommendation_score', 0)
+                rec_type = restaurant.get('recommendation_type', 'hybrid')
+                
+                # Color coding based on recommendation strength
+                if score > 0.7:
+                    border_color = "#28a745"  # Green for high confidence
+                elif score > 0.4:
+                    border_color = "#ffc107"  # Yellow for medium confidence
+                else:
+                    border_color = "#17a2b8"  # Blue for low confidence
+                
+                st.markdown(f"""
+                <div style="
+                    background: white;
+                    border: 2px solid {border_color};
+                    border-radius: 12px;
+                    padding: 1rem;
+                    margin: 0.5rem 0;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">{restaurant['name']}</h4>
+                    <p style="margin: 0 0 0.5rem 0; color: #666;">{restaurant['cuisine']} Cuisine</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="color: #ffc107;">⭐ {restaurant['rating']}</span>
+                        <span style="color: #28a745;">🕒 {restaurant['delivery_time']}</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <span style="
+                            background: {border_color};
+                            color: white;
+                            padding: 0.2rem 0.6rem;
+                            border-radius: 12px;
+                            font-size: 0.8rem;
+                            font-weight: 500;
+                        ">🤖 AI Match: {score:.1%}</span>
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+    
+    # Trending Recommendations
+    trending_recs = ml_recommendations.get('trending', [])
+    if trending_recs:
+        st.subheader("🔥 Trending Now")
+        st.markdown("*Popular choices from our community*")
+        
+        cols = st.columns(4)
+        
+        for i, restaurant in enumerate(trending_recs[:4]):
+            with cols[i]:
+                popularity_score = restaurant.get('recommendation_score', 0)
+                
+                st.markdown(f"""
+                <div style="
+                    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+                    border-radius: 10px;
+                    padding: 1rem;
+                    margin: 0.5rem 0;
+                    text-align: center;
+                    border: 1px solid #feb2b2;
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333; font-size: 0.9rem;">{restaurant['name']}</h4>
+                    <p style="margin: 0 0 0.5rem 0; color: #666; font-size: 0.8rem;">{restaurant['cuisine']}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                        <span style="color: #ffc107;">⭐ {restaurant['rating']}</span>
+                        <span style="color: #e53e3e;">🔥 {popularity_score:.1f}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Collaborative Filtering Recommendations
+    collaborative_recs = ml_recommendations.get('collaborative', [])
+    if collaborative_recs:
+        st.subheader("👥 Users Like You Also Enjoyed")
+        st.markdown("*Based on similar users' preferences*")
+        
+        cols = st.columns(2)
+        
+        for i, restaurant in enumerate(collaborative_recs[:4]):
+            with cols[i % 2]:
+                st.markdown(f"""
+                <div style="
+                    background: linear-gradient(135deg, #e8f4fd 0%, #d1ecf1 100%);
+                    border-left: 4px solid #17a2b8;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin: 0.5rem 0;
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">{restaurant['name']}</h4>
+                    <p style="margin: 0 0 0.5rem 0; color: #666;">{restaurant['cuisine']} • ⭐ {restaurant['rating']} • 🕒 {restaurant['delivery_time']}</p>
+                    <small style="color: #17a2b8;">👥 Recommended by similar users</small>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Content-based Recommendations
+    content_recs = ml_recommendations.get('content_based', [])
+    if content_recs:
+        st.subheader("🎯 Based on Your Taste Profile")
+        st.markdown("*Restaurants matching your cuisine and rating preferences*")
+        
+        cols = st.columns(2)
+        
+        for i, restaurant in enumerate(content_recs[:4]):
+            with cols[i % 2]:
+                st.markdown(f"""
+                <div style="
+                    background: linear-gradient(135deg, #f0f8e8 0%, #e8f5e8 100%);
+                    border-left: 4px solid #28a745;
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin: 0.5rem 0;
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">{restaurant['name']}</h4>
+                    <p style="margin: 0 0 0.5rem 0; color: #666;">{restaurant['cuisine']} • ⭐ {restaurant['rating']} • 🕒 {restaurant['delivery_time']}</p>
+                    <small style="color: #28a745;">🎯 Matches your preferences</small>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Model Information
+    # with st.expander("🤖 About Our AI Recommendations"):
+    #     st.markdown("""
+    #     Our recommendation system uses advanced machine learning algorithms to provide personalized suggestions:
+        
+    #     **🔄 Hybrid Approach**: Combines multiple recommendation techniques for best results
+    #     - **Collaborative Filtering**: Finds users with similar tastes and recommends their favorites
+    #     - **Content-Based Filtering**: Analyzes restaurant features (cuisine, rating, delivery time) against your preferences
+    #     - **Popularity-Based**: Identifies trending restaurants in the community
+        
+    #     **📊 Personalization Factors**:
+    #     - Your order history and frequency
+    #     - Preferred cuisines and restaurant types
+    #     - Average order value and price sensitivity
+    #     - Rating preferences and delivery time preferences
+    #     - Similar users' behavior patterns
+        
+    #     **🎯 Recommendation Confidence**:
+    #     - 🟢 **High (70%+)**: Strong match based on your profile
+    #     - 🟡 **Medium (40-70%)**: Good potential match
+    #     - 🔵 **Exploratory (<40%)**: New options to try
+        
+    #     The system continuously learns from user interactions to improve recommendations over time.
+    #     """)
+    
+    # Update model button (for admin/testing)
+    if st.button("🔄 Refresh Recommendations", help="Update the ML model with latest data"):
+        with st.spinner("Updating recommendation model..."):
+            from utils.ml_recommendations import update_recommendation_model
+            success = update_recommendation_model()
+            if success:
+                st.success("✅ Recommendation model updated successfully!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to update recommendation model")
 
-    # Trending items
-    st.subheader("🔥 Trending Items")
+    # Fallback: Show some trending items if no ML recommendations
+    if not any([hybrid_recs, trending_recs, collaborative_recs, content_recs]):
+        st.subheader("🔥 Popular Items")
+        st.info("🤖 ML recommendations are being prepared. Here are some popular choices:")
     
-    cols = st.columns(3)
+        cols = st.columns(3)
     
-    for i, item in enumerate(TRENDING_ITEMS[:6]):
-        with cols[i % 3]:
-            st.markdown(f"""
-            <div style="
-                background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
-                border-radius: 10px;
-                padding: 1rem;
-                margin: 0.5rem 0;
-                text-align: center;
-            ">
-                <h4 style="margin: 0 0 0.5rem 0; color: #333;">{item['name']}</h4>
-                <p style="margin: 0 0 0.5rem 0; color: #666; font-size: 0.9rem;">{item['restaurant']}</p>
-                <p style="margin: 0 0 0.5rem 0; color: #e53e3e; font-weight: bold;">₹{item['price']}</p>
-                <p style="margin: 0; color: #666; font-size: 0.8rem;">{item['orders']} orders</p>
-            </div>
-            """, unsafe_allow_html=True)
+        for i, item in enumerate(TRENDING_ITEMS[:6]):
+            with cols[i % 3]:
+                st.markdown(f"""
+                <div style="
+                    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+                    border-radius: 10px;
+                    padding: 1rem;
+                    margin: 0.5rem 0;
+                    text-align: center;
+                ">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">{item['name']}</h4>
+                    <p style="margin: 0 0 0.5rem 0; color: #666; font-size: 0.9rem;">{item['restaurant']}</p>
+                    <p style="margin: 0 0 0.5rem 0; color: #e53e3e; font-weight: bold;">₹{item['price']}</p>
+                    <p style="margin: 0; color: #666; font-size: 0.8rem;">{item['orders']} orders</p>
+                </div>
+                """, unsafe_allow_html=True)
 
     # Special offers
     st.subheader("🎁 Special Offers")
