@@ -465,12 +465,12 @@ def past_orders_page(user_data):
 
                 # Action buttons
                 col1, col2, col3 = st.columns([1, 1, 2])
-                with col1:
-                    if st.button(f"🔄 Reorder", key=f"reorder_{order.get('id')}"):
-                        st.success(f"Added {order.get('restaurant')} items to cart!")
-                with col2:
-                    if st.button(f"⭐ Rate", key=f"rate_{order.get('id')}"):
-                        st.info("Rating feature coming soon!")
+                # with col1:
+                #     if st.button(f"🔄 Reorder", key=f"reorder_{order.get('id')}"):
+                #         st.success(f"Added {order.get('restaurant')} items to cart!")
+                # with col2:
+                #     if st.button(f"⭐ Rate", key=f"rate_{order.get('id')}"):
+                #         st.info("Rating feature coming soon!")
 def subscription_page(user_data):
     """Subscription management page."""
     st.markdown("""
